@@ -1,0 +1,3 @@
+[submodule "urban-bem"]
+	path = urban-bem
+	url = https://stash.pnnl.gov/scm/urbanbem/urban-bem.git
