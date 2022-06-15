@@ -1,10 +1,8 @@
 Clone Repository and Submodule:
 
-'''
-git clone -b [branch] https://stash.pnnl.gov/scm/melon/melon.git [your_folder_name]
-cd [your_folder_name]
-git submodule update --init --recursive
-'''
+```git clone -b [branch] https://stash.pnnl.gov/scm/melon/melon.git [your_folder_name]```
+```cd [your_folder_name]```
+```git submodule update --init --recursive```
 
 Directories in **bold**
 
