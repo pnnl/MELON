@@ -18,5 +18,60 @@ RUN if [ -f "/tmp/conda-tmp/environment.yml" ]; then umask 0002 && /opt/conda/bi
 #     && pipx reinstall-all
 
 # [Optional] Uncomment this section to install additional OS packages.
-# RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-#     && apt-get -y install --no-install-recommends <your-package-list-here>
+RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
+    && apt-get -y install --no-install-recommends \
+    libboost-dev \
+    libzmq5-dev \
+    cmake-curses-gui \
+    autoconf \
+    libtool \
+    libxerces-c-dev \
+    automake
+
+##############################
+# New code below
+##############################
+
+# Set LD_LIBRARY_PATH so GridLAB-D can find the HELICS shared library
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
+# Install HELICS
+RUN cd ~ \
+    && git clone https://github.com/GMLC-TDC/HELICS \
+    && cd HELICS \
+    && mkdir build \
+    && cd build \
+    && cmake \
+    -D HELICS_BUILD_CXX_SHARED_LIB=ON \
+    ../ \
+    && make \
+    && sudo make install \
+    && cd ../.. \
+    && rm -rf HELICS
+
+# Install HELICS python package
+RUN pip install helics
+
+# Install HELICS command line interface
+RUN pip install git+https://github.com/GMLC-TDC/helics-cli.git@main
+
+# Install GridLAB-D
+RUN cd ~ \
+    && git clone https://github.com/gridlab-d/gridlab-d.git \
+    && cd gridlab-d \
+    && git checkout feature/1279 \
+    && autoreconf -if \
+    && ./configure --with-helics=/usr/local \
+    'CXXFLAGS=-w -O2 -std=c++14' \
+    'CFLAGS=-w -O2' \
+    'LDFLAGS=-w -O2' \
+    && make -j8 \
+    && sudo make install \
+    && cd .. \
+    && rm -rf gridlab-d
+
+# Install EnergyPlus
+RUN cd ~ \
+    && wget https://github.com/NREL/EnergyPlus/releases/download/v9.5.0/EnergyPlus-9.5.0-de239b2e5f-Linux-Ubuntu20.04-x86_64.sh \
+    && chmod +x EnergyPlus-9.5.0-de239b2e5f-Linux-Ubuntu20.04-x86_64.sh \
+    && printf 'y\n\n\n' | ./EnergyPlus-9.5.0-de239b2e5f-Linux-Ubuntu20.04-x86_64.sh
