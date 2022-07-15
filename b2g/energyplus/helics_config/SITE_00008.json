@@ -1,0 +1,20 @@
+{
+    "name": "SITE_00008",
+    "loglevel": "debug",
+    "period": 900,
+    "connection_required": true,
+    "publications": [
+        {
+            "key": "electricity_consumption",
+            "type": "complex",
+            "unit": "VA"
+        }
+    ],
+    "subscriptions": [
+        {
+            "key": "secondary_feeder/substation_demand",
+            "type": "double",
+            "unit": "W"
+        }
+    ]
+}
