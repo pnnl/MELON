@@ -1,0 +1,16 @@
+{
+    "name" : "secondary_feeder",
+    "loglevel": "debug",
+    "period" : 1.0,
+    "terminate_on_error": true,
+    "connection_required": true,
+    "publications": [
+          {
+               "key": "substation_demand",
+               "type": "double",
+               "unit": "W",
+               "info": "{\"object\": \"N2\", \"property\": \"measured_real_power\"}"
+          }
+    ],
+    "subscriptions": []
+}

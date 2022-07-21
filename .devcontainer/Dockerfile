@@ -32,6 +32,10 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 # New code below
 ##############################
 
+# Python packages
+RUN pip install eppy \
+    && pip install glm
+
 # Set LD_LIBRARY_PATH so GridLAB-D can find the HELICS shared library
 ENV LD_LIBRARY_PATH=/usr/local/lib
 

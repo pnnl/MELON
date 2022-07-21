@@ -1,0 +1,12 @@
+{
+    "name": "demo",
+    "broker": true,
+    "federates": [
+        {
+            "directory": "../gridlab-d",
+            "exec": "gridlabd TopoCenter-PP_base.glm",
+            "host": "localhost",
+            "name": "secondary_feeder"
+        }
+    ]
+}
