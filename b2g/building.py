@@ -9,6 +9,11 @@ api = EnergyPlusAPI()
 state = api.state_manager.new_state()
 HANDLE = None
 CLG_SETP_HANDLE = None
+HTG_SETP_HANDLE = None
+
+# Set maximum price and temperature setpoint tolerance
+MAX_PRICE = 4
+MAX_TOLERANCE = 4
 
 # Helics import statement must come AFTER state declaration to circumvent bug
 import helics as h
@@ -17,12 +22,18 @@ def get_handle(state):
     '''
     Gets handle to the house's electricity meter
     '''
-    global HANDLE, CLG_SETP_HANDLE
+    global HANDLE, CLG_SETP_HANDLE, HTG_SETP_HANDLE
     HANDLE = api.exchange.get_meter_handle(
         state,
         "Electricity:Facility".upper(),
     )
     CLG_SETP_HANDLE = api.exchange.get_actuator_handle(
+        state,
+        "Schedule:Constant",
+        "Schedule Value",
+        "cooling_setpoint"
+    )
+    HTG_SETP_HANDLE = api.exchange.get_actuator_handle(
         state,
         "Schedule:Constant",
         "Schedule Value",
@@ -35,20 +46,26 @@ def log(state):
     '''
     global t, step
     if (api.exchange.kind_of_sim(state) == 3) and not api.exchange.warmup_flag(state):
-        substation_demand = h.helicsInputGetDouble(sub)
+        price = h.helicsInputGetDouble(sub)
 
         #### Control logic block ####
+        tolerance = (MAX_TOLERANCE/MAX_PRICE)*price*(5/9)
         api.exchange.set_actuator_value(
-            state, 
-            CLG_SETP_HANDLE, 
-            22.22 if substation_demand < 44293 else 18
+            state,
+            CLG_SETP_HANDLE,
+            22.22 + tolerance
+        )
+        api.exchange.set_actuator_value(
+            state,
+            HTG_SETP_HANDLE,
+            22.22 - tolerance
         )
         #############################
 
         p = api.exchange.get_meter_value(state, HANDLE)
         h.helicsPublicationPublishComplex(
             pub,
-            (p/900)*.75
+            (p/900)
         )
         t = h.helicsFederateRequestTime(fed, t+(15*60))
 
@@ -62,7 +79,7 @@ sub = h.helicsFederateGetInputByIndex(fed, 0)
 
 # Publish initial value
 h.helicsFederateEnterInitializingMode(fed)
-h.helicsPublicationPublishComplex(pub, 1.2)
+h.helicsPublicationPublishComplex(pub, 0)
 
 # Request next time at the end of each zone timestep after zone reporting
 api.runtime.callback_end_zone_sizing(state, get_handle)

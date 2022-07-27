@@ -12,9 +12,8 @@
     ],
     "subscriptions": [
         {
-            "key": "secondary_feeder/substation_demand",
-            "type": "double",
-            "unit": "W"
+            "key": "supplier/price",
+            "type": "double"
         }
     ]
 }

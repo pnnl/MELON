@@ -7,6 +7,12 @@
             "exec": "gridlabd TopoCenter-PP_base.glm",
             "host": "localhost",
             "name": "secondary_feeder"
+        },
+        {
+            "directory": "..",
+            "exec": "python supplier.py",
+            "host": "localhost",
+            "name": "supplier"
         }
     ]
 }

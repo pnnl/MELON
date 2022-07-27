@@ -1,0 +1,20 @@
+{
+    "name": "supplier",
+    "loglevel": "debug",
+    "period": 300,
+    "terminate_on_error": true,
+    "connection_required": true,
+    "publications": [
+        {
+            "key": "price",
+            "type": "double"
+        }
+    ],
+    "subscriptions": [
+        {
+            "key": "secondary_feeder/substation_demand",
+            "type": "double",
+            "unit": "W"
+        }
+    ]
+}
