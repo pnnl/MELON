@@ -1,3 +1,6 @@
+'''
+Simulator for EnergyPlus residential building federate.
+'''
 import sys
 
 # EnergyPlus Python API
@@ -20,7 +23,8 @@ import helics as h
 
 def get_handle(state):
     '''
-    Gets handle to the house's electricity meter
+    Gets handle to the house's electricity meter, its cooling setpoint, and its heating setpoint.
+    Run once at the beginning of a simulation.
     '''
     global HANDLE, CLG_SETP_HANDLE, HTG_SETP_HANDLE
     HANDLE = api.exchange.get_meter_handle(
@@ -40,15 +44,24 @@ def get_handle(state):
         "heating_setpoint"
     )
 
-def log(state):
+def control_loop(state):
     '''
-    Publishes the total electricity consumption of the house to the federation and sets the temperature setpoints
+    Reads the price from the supplier, sets the heating and cooling temperature setpoints, and
+    publishes the facility-level electricity consumption to the secondary distribution federate.
     '''
+
+    # EnergyPlus API callbacks can't take parameters other than the state, so input variables have
+    # to be read in as global variables
     global t, step
+
+    # We only want the control loop to be active during the primary run period, not sizing or
+    # warmup runs. Otherwise, the timing with the grid-side federate would be thrown off.
     if (api.exchange.kind_of_sim(state) == 3) and not api.exchange.warmup_flag(state):
+
+        # Read the price from the supplier
         price = h.helicsInputGetDouble(sub)
 
-        #### Control logic block ####
+        # Set the temperature setpoint actuators as a function of the price.
         tolerance = (MAX_TOLERANCE/MAX_PRICE)*price*(5/9)
         api.exchange.set_actuator_value(
             state,
@@ -60,12 +73,10 @@ def log(state):
             HTG_SETP_HANDLE,
             22.22 - tolerance
         )
-        #############################
 
-        p = api.exchange.get_meter_value(state, HANDLE)
         h.helicsPublicationPublishComplex(
             pub,
-            (p/900)
+            (api.exchange.get_meter_value(state, HANDLE)/900)
         )
         t = h.helicsFederateRequestTime(fed, t+(15*60))
 
@@ -81,9 +92,9 @@ sub = h.helicsFederateGetInputByIndex(fed, 0)
 h.helicsFederateEnterInitializingMode(fed)
 h.helicsPublicationPublishComplex(pub, 0)
 
-# Request next time at the end of each zone timestep after zone reporting
+# Schedule the callbacks - see EnergyPlus API documentation
 api.runtime.callback_end_zone_sizing(state, get_handle)
-api.runtime.callback_end_zone_timestep_after_zone_reporting(state, log)
+api.runtime.callback_end_zone_timestep_after_zone_reporting(state, control_loop)
 
 # Run the simulation
 h.helicsFederateEnterExecutingMode(fed)
