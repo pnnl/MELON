@@ -10,7 +10,7 @@ from eppy.modeleditor import IDF
 # The IDD file is necessary for eppy. The versions must match.
 IDF.setiddname('input/Energy+V9_5_0.idd')
 
-# The filename for the top-level secondary feeder GridLAB-D model found in /input, consistant with
+# The filename for the top-level secondary GridLAB-D model found in /input, consistant with
 # its name in the gridlabd/Taxonomy_Feeders repository.
 GRIDLABD_FNAME = 'TopoCenter-PP_base.glm'
 
@@ -39,8 +39,8 @@ for directory in SIM_DIRS:
 with open('input/building_config.json', encoding='utf-8') as file:
     building_config = json.load(file)
 
-with open('input/secondary_feeder.json', encoding='utf-8') as file:
-    secondary_feeder = json.load(file)
+with open('input/secondary.json', encoding='utf-8') as file:
+    secondary = json.load(file)
 
 with open('input/subscription.json', encoding='utf-8') as file:
     subscription = json.load(file)
@@ -68,13 +68,13 @@ gld['clock']['starttime'] = f'2000-{BEGIN_MONTH}-{BEGIN_DAY} 00:00:00'
 gld['clock']['stoptime'] = f'2000-{END_MONTH}-{END_DAY} 00:00:00'
 
 # Add a 'helics_msg' object to the GLM pointing to the HELICS configuration file for the
-# secondary feeder federate.
+# secondary federate.
 gld['objects'].append(
     {
         'name': 'helics_msg',
         'attributes': {
-            'name': 'secondary_feeder',
-            'configure': 'secondary_feeder.json'
+            'name': 'secondary',
+            'configure': 'secondary.json'
         },
         'children': []
     }
@@ -181,24 +181,24 @@ for fname in os.listdir('input/idf'):
     with open(f'energyplus/helics_config/{case}.json', 'w', encoding='utf-8') as file:
         json.dump(building_config, file, indent=4)
 
-    # Add the building subscription to the secondary feeder HELICS configuration file
+    # Add the building subscription to the secondary HELICS configuration file
     info['object'] = house.pop(0)
     subscription['key'] = f'{case}/electricity_consumption'
     subscription['info'] = json.dumps(info)
-    secondary_feeder['subscriptions'].append(subscription.copy())
+    secondary['subscriptions'].append(subscription.copy())
 
     # Add the building federate to the HELICS CLI configuration file
     federate['exec'] = f'python ../building.py {case}'
     federate['name'] = case
     run['federates'].append(federate.copy())
 
-# Create the secondary feeder GLM file, secondary feeder HELICS configuration file, and HELICS CLI
+# Create the secondary GLM file, secondary HELICS configuration file, and HELICS CLI
 # configuration file
 with open(f'gridlab-d/{GRIDLABD_FNAME}', 'w', encoding='utf-8') as file:
     file.write(glm.dumps(gld).replace('"', "'", 4))
 
-with open('gridlab-d/secondary_feeder.json', 'w', encoding='utf-8') as file:
-    json.dump(secondary_feeder, file, indent=4)
+with open('gridlab-d/secondary.json', 'w', encoding='utf-8') as file:
+    json.dump(secondary, file, indent=4)
 
 with open('helics/run.json', 'w', encoding='utf-8') as file:
     json.dump(run, file, indent=4)

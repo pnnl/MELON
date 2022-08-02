@@ -6,7 +6,7 @@
             "directory": "../gridlab-d",
             "exec": "gridlabd TopoCenter-PP_base.glm",
             "host": "localhost",
-            "name": "secondary_feeder"
+            "name": "secondary"
         },
         {
             "directory": "..",

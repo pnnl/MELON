@@ -35,7 +35,8 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 # Python packages
 RUN pip install eppy \
     && pip install glm \
-    && conda install pandas
+    && conda install pandas \
+    && conda install -n base ipykernel --update-deps --force-reinstall
 
 # Set LD_LIBRARY_PATH so GridLAB-D can find the HELICS shared library
 ENV LD_LIBRARY_PATH=/usr/local/lib

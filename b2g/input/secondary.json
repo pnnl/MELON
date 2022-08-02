@@ -1,5 +1,5 @@
 {
-    "name" : "secondary_feeder",
+    "name" : "secondary",
     "loglevel": "debug",
     "period" : 1.0,
     "terminate_on_error": true,
