@@ -29,7 +29,7 @@ def get_handle(state):
     global HANDLE, CLG_SETP_HANDLE, HTG_SETP_HANDLE
     HANDLE = api.exchange.get_meter_handle(
         state,
-        "Electricity:Facility".upper(),
+        "ElectricityPurchased:Facility".upper(),
     )
     CLG_SETP_HANDLE = api.exchange.get_actuator_handle(
         state,
@@ -61,6 +61,9 @@ def control_loop(state):
         # Read the price from the supplier
         price = h.helicsInputGetDouble(sub)
 
+        # Read the power demand of the house
+        demand = api.exchange.get_meter_value(state, HANDLE)/900
+
         # Set the temperature setpoint actuators as a function of the price.
         tolerance = (MAX_TOLERANCE/MAX_PRICE)*price*(5/9)
         api.exchange.set_actuator_value(
@@ -76,7 +79,7 @@ def control_loop(state):
 
         h.helicsPublicationPublishComplex(
             pub,
-            (api.exchange.get_meter_value(state, HANDLE)/900)
+            (demand)
         )
         t = h.helicsFederateRequestTime(fed, t+(15*60))
 

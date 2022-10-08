@@ -26,6 +26,7 @@ SIM_DIRS = [
     'energyplus/helics_config',
     'energyplus/output',
     'energyplus/schedules',
+    'energyplus/script_data',
     'gridlab-d',
     'helics'
 ]
@@ -130,6 +131,33 @@ for fname in os.listdir('input/schedules'):
     df['bldg_hvac_operation_sch'] = 1
     df.to_csv(f'energyplus/schedules/{fname}')
 
+# Read in data from the uncontrolled.csv file, if it exists
+# Hard-coded for now; data from the analysis notebook.
+# For future designs, it might be interesting to have an uncontrolled variable/flag 
+# that disables the setpoint controls and storage features, so that new IDFs can be
+# swapped in and quickly generate a new uncontrolled run. 
+## uncontrolled = False
+means = {
+    'SITE_00002': 941.5141004630889,
+    'SITE_00003': 2568.675324537069,
+    'SITE_00004': 8149.6369493055045,
+    'SITE_00005': 9924.44797916652,
+    'SITE_00006': 6593.39781458309,
+    'SITE_00007': 10614.72684490729,
+    'SITE_00008': 2623.5967981480785,
+    'SITE_00009': 9380.390569675774,
+    'SITE_00010': 2839.630419560225,
+    'SITE_00011': 5088.019816898018,
+}
+## This originated from the analysis_storage notebook.
+## Before this can be fully automated, a method to match the loop index
+## to the correct idf filename should be created.
+#if os.path.exists('uncontrolled.csv'):
+#    uncontrolled = pd.read_csv('uncontrolled.csv', index_col=0)
+#    uncontrolled.index = pd.DatetimeIndex(uncontrolled.index)
+#    for index in uncontrolled.columns.values[1:]:
+#        colu = uncontrolled[index]
+#        cur_mean = colu.mean()
 
 house = [load['name'] for load in triplex_loads]
 for fname in os.listdir('input/idf'):
@@ -172,6 +200,54 @@ for fname in os.listdir('input/idf'):
     setpoint = setpoint[0] if len(setpoint) == 1 else None
     setpoint['Heating_Setpoint_Temperature_Schedule_Name'] = 'heating_setpoint'
     setpoint['Cooling_Setpoint_Temperature_Schedule_Name'] = 'cooling_setpoint'
+    
+    # Create new BATTERY objects
+    # We are interested to see how storage affects a connected community, so a simple
+    # storage apporximation will be sufficient for our simulation.
+    # As informed by Jerry, buildings generally have battery sizes that
+    # correlate to their floor area. The relationship is currently
+    # 2.5 Wh/sqft, but may go up to 5.0 Wh/sqft.
+    battery = idf.newidfobject('ELECTRICLOADCENTER:STORAGE:SIMPLE')
+    battery['Name'] = 'simple_battery'
+    energy_area_ratio = 2.5 # Watt hours per square foot
+    floor_area = 0
+    for floor_zone in idf.idfobjects['CONSTRUCTION:FFACTORGROUNDFLOOR']:
+        floor_area += floor_zone['Area'] # I may need to double check that this is square feet?
+    energy_requirement = energy_area_ratio * floor_area * 3600
+    battery['Nominal_Energetic_Efficiency_for_Charging'] = 0.8
+    battery['Nominal_Discharging_Energetic_Efficiency'] = 0.8
+    battery['Maximum_Storage_Capacity'] = energy_requirement * 10
+    battery['Maximum_Power_for_Discharging'] = 720
+    battery['Maximum_Power_for_Charging'] = 480
+    battery['Initial_State_of_Charge'] = energy_requirement * 10
+
+    converter = idf.newidfobject('ELECTRICLOADCENTER:STORAGE:CONVERTER')
+    converter['Name'] = 'converter'
+    converter['Power_Conversion_Efficiency_Method'] = 'SimpleFixed'
+    converter['Simple_Fixed_Efficiency'] = 1
+
+    # The schedule is constant for now.
+    # A value of 1 means that the building can never export
+    # energy to the grid. That is ideal for the current scenario.
+    storage_schedule = idf.newidfobject('SCHEDULE:CONSTANT')
+    storage_schedule['Name'] = 'storage_schedule'
+    storage_schedule['Schedule_Type_Limits_Name'] = 'Any Number'
+    storage_schedule['Hourly_Value'] = 1
+
+    distribution = idf.newidfobject('ELECTRICLOADCENTER:DISTRIBUTION')
+    distribution['Name'] = 'distribution'
+    distribution['Electrical_Buss_Type'] = 'AlternatingCurrentWithStorage'
+    distribution['Electrical_Storage_Object_Name'] = 'simple_battery'
+    distribution['Storage_Operation_Scheme'] = 'FacilityDemandLeveling'
+    distribution['Storage_Converter_Object_Name'] = 'converter'
+    distribution['Design_Storage_Control_Charge_Power'] = 480
+    distribution['Design_Storage_Control_Discharge_Power'] = 720
+    distribution['Storage_Control_Utility_Demand_Target'] = means[case] * 0.95 # Watts
+    distribution['Storage_Control_Utility_Demand_Target_Fraction_Schedule_Name'] = 'storage_schedule'
+
+    # Add the detailed Electricity:Purchased meter
+    purchased = idf.newidfobject('OUTPUT:METER')
+    purchased['Key_Name'] = 'ElectricityPurchased:Facility'
 
     # Save modified IDF
     idf.saveas(f'energyplus/idf/{fname}')
