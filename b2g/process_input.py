@@ -26,7 +26,6 @@ SIM_DIRS = [
     'energyplus/helics_config',
     'energyplus/output',
     'energyplus/schedules',
-    'energyplus/script_data',
     'gridlab-d',
     'helics'
 ]
@@ -226,13 +225,15 @@ for fname in os.listdir('input/idf'):
     converter['Power_Conversion_Efficiency_Method'] = 'SimpleFixed'
     converter['Simple_Fixed_Efficiency'] = 1
 
-    # The schedule is constant for now.
-    # A value of 1 means that the building can never export
+    # This modifies the Demand Target field. -1 to 1, inclusive.
+    # The schedule is constant for now; more intricate control
+    # can use a different schedule type later.
+    # A value > 0 means that the building can never export
     # energy to the grid. That is ideal for the current scenario.
     storage_schedule = idf.newidfobject('SCHEDULE:CONSTANT')
     storage_schedule['Name'] = 'storage_schedule'
     storage_schedule['Schedule_Type_Limits_Name'] = 'Any Number'
-    storage_schedule['Hourly_Value'] = 1
+    storage_schedule['Hourly_Value'] = 0.95
 
     distribution = idf.newidfobject('ELECTRICLOADCENTER:DISTRIBUTION')
     distribution['Name'] = 'distribution'
@@ -242,7 +243,7 @@ for fname in os.listdir('input/idf'):
     distribution['Storage_Converter_Object_Name'] = 'converter'
     distribution['Design_Storage_Control_Charge_Power'] = 480
     distribution['Design_Storage_Control_Discharge_Power'] = 720
-    distribution['Storage_Control_Utility_Demand_Target'] = means[case] * 0.95 # Watts
+    distribution['Storage_Control_Utility_Demand_Target'] = means[case] # Watts
     distribution['Storage_Control_Utility_Demand_Target_Fraction_Schedule_Name'] = 'storage_schedule'
 
     # Add the detailed Electricity:Purchased meter
