@@ -205,13 +205,13 @@ for fname in os.listdir('input/idf'):
     # storage apporximation will be sufficient for our simulation.
     # As informed by Jerry, buildings generally have battery sizes that
     # correlate to their floor area. The relationship is currently
-    # 2.5 Wh/sqft, but may go up to 5.0 Wh/sqft.
+    # 2.5 kWh/sqft, but may go up to 5.0 kWh/sqft.
     battery = idf.newidfobject('ELECTRICLOADCENTER:STORAGE:SIMPLE')
     battery['Name'] = 'simple_battery'
-    energy_area_ratio = 2.5 # Watt hours per square foot
+    energy_area_ratio = 2500 / 10.7639 # Kilowatt hours per sq.ft. (in m^2); 10.7639 ft^2 = 1 m^2
     floor_area = 0
     for floor_zone in idf.idfobjects['CONSTRUCTION:FFACTORGROUNDFLOOR']:
-        floor_area += floor_zone['Area'] # I may need to double check that this is square feet?
+        floor_area += floor_zone['Area'] # EPlus uses m^2
     energy_requirement = energy_area_ratio * floor_area * 3600
     battery['Nominal_Energetic_Efficiency_for_Charging'] = 0.8
     battery['Nominal_Discharging_Energetic_Efficiency'] = 0.8
