@@ -65,16 +65,12 @@ RUN pip install git+https://github.com/GMLC-TDC/helics-cli.git@main
 RUN cd ~ \
     && git clone https://github.com/gridlab-d/gridlab-d.git \
     && cd gridlab-d \
-    && git checkout feature/1279 \
-    && autoreconf -if \
-    && ./configure --with-helics=/usr/local \
-    'CXXFLAGS=-w -O2 -std=c++14' \
-    'CFLAGS=-w -O2' \
-    'LDFLAGS=-w -O2' \
-    && make -j8 \
-    && sudo make install \
-    && cd .. \
-    && rm -rf gridlab-d
+    && git checkout develop \
+    && git submodule update --init \
+    && mkdir cmake-build \
+    && cd cmake-build \
+    && cmake -DGLD_USE_HELICS=ON .. \
+    && cmake --build . -j8 --target install
 
 # Install EnergyPlus
 RUN cd ~ \
