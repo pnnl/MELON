@@ -28,6 +28,9 @@ h.helicsPublicationPublishComplex(pub, MAX_SIGMA)
 
 h.helicsFederateEnterExecutingMode(fed)
 
+times = []
+prices = []
+
 t = 0
 while t < MAX_T:
     # Control loop: read transformer load, compute z-score, publish price
@@ -39,6 +42,10 @@ while t < MAX_T:
         else 2*MAX_SIGMA if price > 2*MAX_SIGMA
         else price
     )
+
+    times.append(t/60)
+    prices.append(price)
+    
     h.helicsPublicationPublishDouble(
         pub,
         price
@@ -49,3 +56,11 @@ while t < MAX_T:
 h.helicsFederateDisconnect(fed)
 h.helicsFederateFree(fed)
 h.helicsCloseLibrary()
+
+# Print new price csv
+data = {
+    'time': times,
+    'price': prices
+}
+df = pd.DataFrame(data)
+df.to_csv('price_log.csv', mode='w', index=False)
