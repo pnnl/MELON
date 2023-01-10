@@ -93,6 +93,11 @@ for gld_obj in gld['objects']:
             if key in ['name', 'parent']
         }
         gld_obj['children'] = []
+    elif gld_obj['name'] == 'solar':
+        gld_obj['attributes'] = {
+            key: value for key, value in gld_obj['attributes'].items()
+            if key in ['name','parent','panel_type','efficiency','area']
+        }
 
 # Modify two predefined output recorder objects:
 # 1. Voltage output: real and imaginary parts of all 10 buildings
