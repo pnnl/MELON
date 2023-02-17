@@ -85,7 +85,8 @@ def control_loop(state):
 
     # EnergyPlus API callbacks can't take parameters other than the state, so input variables have
     # to be read in as global variables
-    global t, step
+    global t
+    step = 60*15
 
     # We only want the control loop to be active during the primary run period, not sizing or
     # warmup runs. Otherwise, the timing with the grid-side federate would be thrown off.
@@ -95,7 +96,7 @@ def control_loop(state):
         price = h.helicsInputGetDouble(sub)
 
         # Read the power demand of the house
-        demand = api.exchange.get_meter_value(state, HANDLE)/(60*15)
+        demand = api.exchange.get_meter_value(state, HANDLE)/step
 
         # Set the temperature setpoint actuators as a function of the price.
         tolerance = 2 #(MAX_TOLERANCE/MAX_PRICE)*price*(5/9)
@@ -147,16 +148,11 @@ def control_loop(state):
                 )
 
         soc = battery_soc/battery_cap
-        #bat_power = battery_cap/(60*15)
         shift = soc - 0.5 # -0.3 at empty, 0.3 at full
         cost_max = (BAT_MAX_PRICE - shift) * avg_power
         cost_min = (BAT_MIN_PRICE - shift) * avg_power
         cost_actual = price * demand
         overprice = 0
-        #if (BAT_MAX_PRICE - shift < price):
-        #    overprice = (price-BAT_MAX_PRICE)/1.3
-        #elif BAT_MIN_PRICE - shift > price:
-        #    overprice = (price-BAT_MIN_PRICE)/1.3
 
         if cost_max < cost_actual:
             overprice = (cost_max - cost_actual)/avg_power
@@ -169,7 +165,7 @@ def control_loop(state):
             pub,
             (demand)
         )
-        t = h.helicsFederateRequestTime(fed, t+(15*60))
+        t = h.helicsFederateRequestTime(fed, t+step)
 
 # Get case name from command line argument
 CASE = sys.argv[1]
