@@ -9,18 +9,23 @@ from pyenergyplus.api import EnergyPlusAPI
 
 # Instantiate EnergyPlus API and state
 api = EnergyPlusAPI()
-state = api.state_manager.new_state()
+_state = api.state_manager.new_state()
 HANDLE = None
 CLG_SETP_HANDLE = None
 HTG_SETP_HANDLE = None
+CHG_SETP_HANDLE = None
+DCH_SETP_HANDLE = None
+BTY_SOC_HANDLE = None
+BTY_CAP_HANDLE = None
+POW_AVG_HANDLE = None
 
 # Set maximum price and temperature setpoint tolerance
 MAX_PRICE = 4
 MAX_TOLERANCE = 4
 
 # Set battery operation threshold prices
-BAT_MAX_PRICE = 3.5
-BAT_MIN_PRICE = 1.5
+BAT_MAX_PRICE = 3.5 # 3.0
+BAT_MIN_PRICE = 0.5 # 1.5
 
 # Helics import statement must come AFTER state declaration to circumvent bug
 import helics as h
@@ -99,16 +104,16 @@ def control_loop(state):
         demand = api.exchange.get_meter_value(state, HANDLE)/step
 
         # Set the temperature setpoint actuators as a function of the price.
-        tolerance = 2 #(MAX_TOLERANCE/MAX_PRICE)*price*(5/9)
+        tolerance = 1 #(MAX_TOLERANCE/MAX_PRICE)*price*(5/9)
         api.exchange.set_actuator_value(
             state,
             CLG_SETP_HANDLE,
-            22.22 + tolerance
+            20 + tolerance
         )
         api.exchange.set_actuator_value(
             state,
             HTG_SETP_HANDLE,
-            22.22 - tolerance
+            20 - tolerance
         )
 
         # Set the energy storage (battery) setpoint actuators
@@ -180,14 +185,14 @@ h.helicsFederateEnterInitializingMode(fed)
 h.helicsPublicationPublishComplex(pub, 0)
 
 # Schedule the callbacks - see EnergyPlus API documentation
-api.runtime.callback_end_zone_sizing(state, get_handle)
-api.runtime.callback_end_zone_timestep_after_zone_reporting(state, control_loop)
+api.runtime.callback_end_zone_sizing(_state, get_handle)
+api.runtime.callback_end_zone_timestep_after_zone_reporting(_state, control_loop)
 
 # Run the simulation
 h.helicsFederateEnterExecutingMode(fed)
 t = h.helicsFederateRequestTime(fed, 0)
 api.runtime.run_energyplus(
-    state = state,
+    state = _state,
     command_line_args = [
         '-d', f'output/{CASE}',
         '-w', '../input/USA_WA_Seattle-Tacoma.Intl.AP.727930_TMY3.epw',

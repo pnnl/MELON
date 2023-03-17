@@ -11,11 +11,11 @@
         "END_DAY": 31
     },
     "battery_specs": {
-        "energy_area_ratio": 836128.1692,
+        "energy_area_ratio": 96875100,
         "efficiency_charge": 0.85,
         "efficiency_discharge": 0.85,
-        "power_charge": 500,
-        "power_discharge": 500,
+        "power_charge": 1000,
+        "power_discharge": 1000,
         "soc_initial": 0.5,
         "soc_max": 0.8,
         "soc_min": 0.2

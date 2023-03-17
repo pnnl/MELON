@@ -15,15 +15,8 @@ IDF.setiddname('input/Energy+V9_5_0.idd')
 # its name in the gridlabd/Taxonomy_Feeders repository.
 GRIDLABD_FNAME = 'TopoCenter-PP_base.glm'
 
-# Start and end days for the simulation
-BEGIN_MONTH = 1
-BEGIN_DAY = 1
-END_MONTH = 1
-END_DAY = 31
-
-CONTROLLED = False
-HEATING = False
-BATTERY = False
+# Simulation specifications
+# Includes: scenario flags; start and end dates; battery specs
 SPECS = {
     'flags': {
         'controlled': 0,
@@ -34,14 +27,18 @@ SPECS = {
         "BEGIN_MONTH": 1,
         "BEGIN_DAY": 1,
         "END_MONTH": 1,
-        "END_DAY": 31
+        "END_DAY": 31,
+        "DURATION": 31
+    },
+    'heating_specs': {
+        "IDEAL": 20
     },
     'battery_specs': {
-        'energy_area_ratio': 2500 * 3600 / 10.7639, # KWh / sq.ft. (in m^2); 10.7639 ft^2 = 1 m^2
+        'energy_area_ratio': 2500 * 3600 * 10.7639, # KWh / sq.ft. (in m^2); 10.7639 ft^2 = 1 m^2
         'efficiency_charge': 0.85,
         'efficiency_discharge': 0.85,
-        'power_charge': 500,
-        'power_discharge': 500,
+        'power_charge': 1000,
+        'power_discharge': 1000,
         'soc_initial': 0.5,
         'soc_max': 0.8,
         'soc_min': 0.2
@@ -81,6 +78,7 @@ with open('input/run.json', encoding='utf-8') as file:
 with open('input/federate.json', encoding='utf-8') as file:
     federate = json.load(file)
 
+
 # Primary function to process inputs.
 # Modifications to files should be added as functions (with a logical check, if necessary)
 def process_input(base_specs):
@@ -102,7 +100,7 @@ def process_input(base_specs):
     flags = base_specs['flags']
     means = None
     if flags['controlled']:
-        means = load_means()
+        means = load_means('uncontrolled_mean_data.csv')
 
     [gld, triplex_loads] = modify_gld()
 
@@ -112,6 +110,8 @@ def process_input(base_specs):
 
         # Load IDF
         idf = IDF(f'input/idf/{case}.idf')
+
+        ep_modify(idf, case)
 
         if flags['controlled']:
             ep_add_means(idf, means[case])
@@ -143,28 +143,31 @@ def process_input(base_specs):
 
     setup_helics(gld)
 
+
 # Function to read arguments from the command line.
 # Used in conjunction with the process_input(...) function
 def read_sys_args():
     '''
     Read input, if any, and process .json specification file
     '''
-    if len(sys.argv) > 1:
-        if (file_in := sys.argv[1])[-5:] == '.json':
-            print(f'Filename {file_in} accepted.')
-            chosen_path = file_in
-            with open(f'{chosen_path}', encoding='utf-8') as _file:
-                spec_file = json.load(_file)
-                print(f'File {chosen_path} loaded successfully.')
-            return spec_file
-        else:
-            suffix = 'None'
-            if '.' in file_in:
-                suffix = '.'+file_in.split('.', 1)[1]
-            print(f'Argument must have a .json suffix. Suffix provided: {suffix}')
-            print('Using default specifications instead.')
-            return SPECS
-    else: return SPECS
+    if len(sys.argv) == 1:
+        return SPECS
+
+    if (file_in := sys.argv[1])[-5:] == '.json':
+        print(f'Filename {file_in} accepted.')
+        chosen_path = file_in
+        with open(f'{chosen_path}', encoding='utf-8') as _file:
+            spec_file = json.load(_file)
+            print(f'File {chosen_path} loaded successfully.')
+        return spec_file
+
+    suffix = 'None'
+    if '.' in file_in:
+        suffix = '.'+file_in.split('.', 1)[1]
+    print(f'Argument must have a .json suffix. Suffix provided: {suffix}')
+    print('Using default specifications instead.')
+    return SPECS
+
 
 # Functions that prepare files found below.
 def modify_gld():
@@ -172,6 +175,7 @@ def modify_gld():
     Modifies GLD
     '''
     gld = glm.load(f'input/{GRIDLABD_FNAME}')
+    timeframe = SPECS['timeframe']
 
     # Add the 'connection' model to the GLM file. This module contains the 'helics_msg' object
     # necessary for HELICS integration
@@ -183,8 +187,8 @@ def modify_gld():
     )
 
     # Set the run period for GridLAB-D
-    gld['clock']['starttime'] = f'2000-{BEGIN_MONTH}-{BEGIN_DAY} 00:00:00'
-    gld['clock']['stoptime'] = f'2000-{END_MONTH}-{END_DAY} 00:00:00'
+    gld['clock']['starttime'] = f"2000-{timeframe['BEGIN_MONTH']}-{timeframe['BEGIN_DAY']} 00:00:00"
+    gld['clock']['stoptime'] = f"2000-{timeframe['END_MONTH']}-{timeframe['END_DAY']} 23:59:00"
 
     # Add a 'helics_msg' object to the GLM pointing to the HELICS configuration file for the
     # secondary federate.
@@ -212,6 +216,11 @@ def modify_gld():
                 if key in ['name', 'parent']
             }
             gld_obj['children'] = []
+        elif gld_obj['name'] == 'solar':
+            gld_obj['attributes'] = {
+            key: value for key, value in gld_obj['attributes'].items()
+            if key in ['name','parent','panel_type','efficiency','area']
+        }
 
     # Modify two predefined output recorder objects:
     # 1. Voltage output: real and imaginary parts of all 10 buildings
@@ -234,6 +243,7 @@ def modify_gld():
                         for load in triplex_loads
                     ]
                 )
+            gld_obj['attributes']['interval'] = 15*60
             gld_obj['attributes'].pop('limit')
 
     # Delete the house output, as we have replaced the GridLAB-D houses with external EnergyPlus
@@ -251,13 +261,16 @@ def modify_gld():
 
     return [gld, triplex_loads]
 
-# Read in data from the uncontrolled.csv file, if it exists
+# Read in data from the supplied file, if it exists
 # For future designs, it might be interesting to have an uncontrolled variable/flag
 # that disables the setpoint controls and storage features, so that new IDFs can be
 # swapped in and quickly generate a new uncontrolled run.
-def load_means():
+def load_means(_path='uncontrolled.csv'):
     '''
-    Calculates the mean load produced for each building on the network.
+    Creates a table of mean power demand for each building.
+    Each entry in the table will be a list of mean power demands, corresponding to each simulated month. \n
+    By default, it calculates the mean load from "uncontrolled.csv".
+    If a different file is supplied, it will read in the means from that file instead. \n
     Function is hardcoded to match the site names at the moment.
     TODO: Find a way to have them not be hardcoded?
     '''
@@ -273,35 +286,40 @@ def load_means():
         'SITE_00010': 'N13',#2698.1558887732117, #N13
         'SITE_00011': 'N14'#4930.715833564907, #N14
     }
-    if os.path.exists('uncontrolled.csv'):
-        uncontrolled = pd.read_csv('uncontrolled.csv', index_col=0)
-        uncontrolled.index = pd.DatetimeIndex(uncontrolled.index.str.replace('PST', '', regex=True))
+
+    if os.path.exists(_path):
+        file_in = pd.read_csv(_path, index_col=0)
         for site_name, node_num in means_table.items():
-            colu = uncontrolled[node_num]
-            means_table[site_name] = colu.mean()
+            if _path == 'uncontrolled.csv':
+                _mean = [file_in[node_num].mean()]
+            else:
+                _mean = list(file_in[node_num])
+            means_table[site_name] = _mean
+
     return means_table
 
 ## Define functions to modify EnergyPLUS .idf files
 
-def ep_modify(eidf, case):
+def ep_modify(_idf, case):
     '''Prepares idf files for simulation.'''
+    timeframe = SPECS['timeframe']
     # Set EnergyPlus run period
     run_period = [
-        run_period for run_period in eidf.idfobjects['RUNPERIOD']
+        run_period for run_period in _idf.idfobjects['RUNPERIOD']
         if run_period['Name'] == 'Run Period 1'
     ]
     run_period = run_period[0] if len(run_period) == 1 else None
-    run_period['Begin_Month'] = BEGIN_MONTH
-    run_period['Begin_Day_of_Month'] = BEGIN_DAY
-    run_period['End_Month'] = END_MONTH
-    run_period['End_Day_of_Month'] = END_DAY
+    run_period['Begin_Month'] = timeframe['BEGIN_DAY']
+    run_period['Begin_Day_of_Month'] = timeframe['BEGIN_DAY']
+    run_period['End_Month'] = timeframe['END_MONTH']
+    run_period['End_Day_of_Month'] = timeframe['END_DAY']
 
     # Set Variable Dictionary output type ('regular' or 'IDF')
-    var_dictionary = eidf.getobject('OUTPUT:VARIABLEDICTIONARY','Regular')
+    var_dictionary = _idf.getobject('OUTPUT:VARIABLEDICTIONARY','Regular')
     var_dictionary['Key_Field'] = 'IDF'
 
     # Point SCHEDULE:FILE objects to schedule CSVs
-    for schedule in eidf.idfobjects['SCHEDULE:FILE']:
+    for schedule in _idf.idfobjects['SCHEDULE:FILE']:
         path = f'schedules/{case}_schedules.csv'
         schedule['File_Name'] = (
             path if path in schedule['File_Name'] else schedule['File_Name']
@@ -310,44 +328,62 @@ def ep_modify(eidf, case):
     # Add the Electricity:Purchased meter
     # This automatically subtracts on-site energy (storage, generators)
     # from the default meter (i.e., it reports the actual demand on the grid)
-    purchased = eidf.newidfobject('OUTPUT:METER')
+    purchased = _idf.newidfobject('OUTPUT:METER')
     purchased['Key_Name'] = 'ElectricityPurchased:Facility'
+    purchased['Reporting_Frequency'] = 'Timestep'
 
-def ep_add_means(eidf, mean_value):
-    '''Function to add mean energy consumption outputs.'''
-    avg_power = eidf.newidfobject('SCHEDULE:CONSTANT')
-    avg_power['Name'] = 'avg_power'
-    avg_power['Schedule_Type_Limits_Name'] = 'Any Number'
-    avg_power['Hourly_Value'] = mean_value
+def ep_add_means(_idf, mean_list):
+    '''
+    Function to add mean energy consumption outputs. \n
+    If mean_list has a length of 1, a constant schedule is added. \n
+    Otherwise, it is assumed mean_list has a length of 12 and a compact schedule is added for the whole year
+    '''
+    if len(mean_list) == 1:
+        avg_power = _idf.newidfobject('SCHEDULE:CONSTANT')
+        avg_power['Name'] = 'avg_power'
+        avg_power['Schedule_Type_Limits_Name'] = 'Any Number'
+        avg_power['Hourly_Value'] = mean_list[0]
+    else:
+        avg_power = _idf.newidfobject('SCHEDULE:COMPACT')
+        avg_power['Name'] = 'avg_power'
+        avg_power['Schedule_Type_Limits_Name'] = 'Dimensionless'
+        dates = ['1/31', '2/29', '3/31', '4/30',
+                 '5/31', '6/30', '7/31', '8/31',
+                 '9/30', '10/31', '11/30', '12/31']
+        for i in range(12):
+            avg_power[f'Field_{4*i+1}'] = f'Through: {dates[i]}'
+            avg_power[f'Field_{4*i+2}'] = 'For: AllDays'
+            avg_power[f'Field_{4*i+3}'] = 'Until: 24:00'
+            avg_power[f'Field_{4*i+4}'] = mean_list[i]
 
-    avg_out = eidf.newidfobject('OUTPUT:VARIABLE')
+    avg_out = _idf.newidfobject('OUTPUT:VARIABLE')
     avg_out['Key_Value'] = 'avg_power'
     avg_out['Variable_Name'] = 'Schedule Value'
     avg_out['Schedule_Name'] = 'avg_power'
 
-def ep_add_temperature_control(eidf):
+def ep_add_temperature_control(_idf):
     '''Adds heating and cooling setpoints for use in a controlled scenario.'''
     # Create new SCHEDULE:CONSTANT objects for the heating and cooling setpoints. These will be
-    # actuated by the EnergyPlus Python API. 22.22 Celsius will be our default value.
-    cooling_setpoint = eidf.newidfobject('SCHEDULE:CONSTANT')
-    heating_setpoint = eidf.newidfobject('SCHEDULE:CONSTANT')
+    # actuated by the EnergyPlus Python API. 20 Celsius will be our default value.
+    cooling_setpoint = _idf.newidfobject('SCHEDULE:CONSTANT')
+    heating_setpoint = _idf.newidfobject('SCHEDULE:CONSTANT')
     cooling_setpoint['Name'] = 'cooling_setpoint'
     cooling_setpoint['Schedule_Type_Limits_Name'] = 'Any Number'
-    cooling_setpoint['Hourly_Value'] = 22.22
+    cooling_setpoint['Hourly_Value'] = 20
     heating_setpoint['Name'] = 'heating_setpoint'
     heating_setpoint['Schedule_Type_Limits_Name'] = 'Any Number'
-    heating_setpoint['Hourly_Value'] = 22.22
+    heating_setpoint['Hourly_Value'] = 20
 
     # Point the DUALSETPOINT object to the SCHEDULE:CONSTANT objects
-    setpoint = eidf.idfobjects['THERMOSTATSETPOINT:DUALSETPOINT']
+    setpoint = _idf.idfobjects['THERMOSTATSETPOINT:DUALSETPOINT']
     setpoint = setpoint[0] if len(setpoint) == 1 else None
     setpoint['Heating_Setpoint_Temperature_Schedule_Name'] = 'heating_setpoint'
     setpoint['Cooling_Setpoint_Temperature_Schedule_Name'] = 'cooling_setpoint'
 
-def ep_add_battery(eidf, stats):
+def ep_add_battery(_idf, stats):
     '''
     Adds battery objects to a specific EnergyPLUS .idf file.
-    - eidf: An .idf file opened through eppy.modeleditor.IDF()
+    - _idf: An .idf file opened through eppy.modeleditor.IDF()
     - stats: A dictionary that describes the functionality of a Simple Battery object.
         - Keys:
         energy_area_ratio, efficiency_charge, efficiency_discharge,
@@ -362,11 +398,11 @@ def ep_add_battery(eidf, stats):
     # 2.5 kWh/sqft, but may go up to 5.0 kWh/sqft.
 
     floor_area = 0
-    for floor_zone in eidf.idfobjects['CONSTRUCTION:FFACTORGROUNDFLOOR']:
+    for floor_zone in _idf.idfobjects['CONSTRUCTION:FFACTORGROUNDFLOOR']:
         floor_area += floor_zone['Area'] # EPlus uses m^2
     energy_requirement = stats['energy_area_ratio'] * floor_area
 
-    battery = eidf.newidfobject('ELECTRICLOADCENTER:STORAGE:SIMPLE')
+    battery = _idf.newidfobject('ELECTRICLOADCENTER:STORAGE:SIMPLE')
     battery['Name'] = 'simple_battery'
     battery['Nominal_Energetic_Efficiency_for_Charging'] = stats['efficiency_charge']
     battery['Nominal_Discharging_Energetic_Efficiency'] = stats['efficiency_discharge']
@@ -377,16 +413,16 @@ def ep_add_battery(eidf, stats):
 
     # Add output for the state of charge of the storage
     # Useful for creating control logic in the building.py script
-    soc = eidf.newidfobject('OUTPUT:VARIABLE')
+    soc = _idf.newidfobject('OUTPUT:VARIABLE')
     soc['Variable_Name'] = 'Electric Storage Simple Charge State'
     soc['Reporting_Frequency'] = 'Timestep'
 
-    capacity_const = eidf.newidfobject('SCHEDULE:CONSTANT')
+    capacity_const = _idf.newidfobject('SCHEDULE:CONSTANT')
     capacity_const['Name'] = 'battery_capacity'
     capacity_const['Schedule_Type_Limits_Name'] = 'Any Number'
     capacity_const['Hourly_Value'] = energy_requirement
 
-    capacity_out = eidf.newidfobject('OUTPUT:VARIABLE')
+    capacity_out = _idf.newidfobject('OUTPUT:VARIABLE')
     capacity_out['Key_Value'] = 'battery_capacity'
     capacity_out['Variable_Name'] = 'Schedule Value'
     capacity_out['Schedule_Name'] = 'battery_capacity'
@@ -396,11 +432,11 @@ def ep_add_battery(eidf, stats):
     # based on the designed power rates.
     # Only one of these should be non-zero at a time.
     # Logic control found in the building.py script
-    charge_schedule = eidf.newidfobject('SCHEDULE:CONSTANT')
+    charge_schedule = _idf.newidfobject('SCHEDULE:CONSTANT')
     charge_schedule['Name'] = 'charge_schedule'
     charge_schedule['Schedule_Type_Limits_Name'] = 'Any Number'
     charge_schedule['Hourly_Value'] = 0.0
-    discharge_schedule = eidf.newidfobject('SCHEDULE:CONSTANT')
+    discharge_schedule = _idf.newidfobject('SCHEDULE:CONSTANT')
     discharge_schedule['Name'] = 'discharge_schedule'
     discharge_schedule['Schedule_Type_Limits_Name'] = 'Any Number'
     discharge_schedule['Hourly_Value'] = 0.0
@@ -411,12 +447,12 @@ def ep_add_battery(eidf, stats):
     # Converter (created below)
     # Storage (Simple storage; above)
     # Schedules (Charge and Discharge; above)
-    converter = eidf.newidfobject('ELECTRICLOADCENTER:STORAGE:CONVERTER')
+    converter = _idf.newidfobject('ELECTRICLOADCENTER:STORAGE:CONVERTER')
     converter['Name'] = 'converter'
     converter['Power_Conversion_Efficiency_Method'] = 'SimpleFixed'
     converter['Simple_Fixed_Efficiency'] = 1
 
-    distribution = eidf.newidfobject('ELECTRICLOADCENTER:DISTRIBUTION')
+    distribution = _idf.newidfobject('ELECTRICLOADCENTER:DISTRIBUTION')
     distribution['Name'] = 'distribution'
     distribution['Electrical_Buss_Type'] = 'AlternatingCurrentWithStorage'
     distribution['Electrical_Storage_Object_Name'] = 'simple_battery' # Storage object
