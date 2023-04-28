@@ -107,7 +107,7 @@ def process_input(base_specs):
     house = [load['name'] for load in triplex_loads]
     for fname in os.listdir('input/idf'):
         case = fname.replace('.idf','')
-
+        print(case)
         # Load IDF
         idf = IDF(f'input/idf/{case}.idf')
 
@@ -400,6 +400,7 @@ def ep_add_battery(_idf, stats):
     floor_area = 0
     for floor_zone in _idf.idfobjects['CONSTRUCTION:FFACTORGROUNDFLOOR']:
         floor_area += floor_zone['Area'] # EPlus uses m^2
+    print(floor_area)
     energy_requirement = stats['energy_area_ratio'] * floor_area
 
     battery = _idf.newidfobject('ELECTRICLOADCENTER:STORAGE:SIMPLE')

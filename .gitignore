@@ -2,3 +2,4 @@ helics-cli.db
 b2g/energyplus/*
 b2g/gridlab-d/*
 b2g/helics/*
+b2g/data/
