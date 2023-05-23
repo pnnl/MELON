@@ -1,3 +1,11 @@
+Clone Repository and Submodule:
+
+```git clone -b [branch] https://stash.pnnl.gov/scm/melon/melon.git [your_folder_name]```
+
+```cd [your_folder_name]```
+
+```git submodule update --init --recursive```
+
 Directories in **bold**
 
 Script names are only placeholders meant to provide a rough sketch of workflow
