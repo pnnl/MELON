@@ -1,0 +1,19 @@
+{
+    "name": "",
+    "loglevel": "debug",
+    "period": 900,
+    "connection_required": true,
+    "publications": [
+        {
+            "key": "electricity_consumption",
+            "type": "complex",
+            "unit": "VA"
+        }
+    ],
+    "subscriptions": [
+        {
+            "key": "supplier/price",
+            "type": "double"
+        }
+    ]
+}

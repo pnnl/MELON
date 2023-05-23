@@ -41,5 +41,3 @@ MELON
     - Secondary feeder GRIDLAB-D files (modified)
 - **output** (not in repo - built during run)
 - **calibration** (not in repo - built during run)
-
-
